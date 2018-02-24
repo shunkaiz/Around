@@ -16,7 +16,7 @@ func main() {
 		sum += num
 	}
 	fmt.Printf("sum is %d", sum)
-	array := []string{}
+	array := []string{"1","2","3"}
 	x ,y ,z := array[0],array[1],array[2]
 	fmt.Printf("%s %s %s\n", x, y, z)
 
