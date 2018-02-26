@@ -58,7 +58,6 @@ func main() {
 			"mappings":{
 				"post":{
 					"properties":{
-
 						"location":{
 							"type":"geo_point"
 						}
@@ -102,7 +101,7 @@ const (
 	PROJECT_ID = "around-195521"
 	BT_INSTANCE = "around-post"
 	TYPE_USER = "user"
-
+	ENABLE_BIGTABLE = false
 )
 
 
@@ -200,7 +199,7 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := uuid.New()
-	/**
+
 	file, _, err := r.FormFile("image")
 	if err != nil {
 		http.Error(w, "Image is not available", http.StatusInternalServerError)
@@ -224,31 +223,11 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
 
 	// Save to ES.
 	saveToES(p, id)
-	**/
+
 	// Save to BigTable.
-	//saveToBigTable(p, id)
-	ctx := context.Background()
-	// you must update project name here
-	bt_client, err := bigtable.NewClient(ctx, PROJECT_ID, BT_INSTANCE)
-	if err != nil {
-		panic(err)
-		return
+	if ENABLE_BIGTABLE {
+		go saveToBigTable(p, id)
 	}
-	tbl := bt_client.Open("post")
-	mut := bigtable.NewMutation()
-	t := bigtable.Now()
-
-	mut.Set("post", "user", t, []byte(p.User))
-	mut.Set("post", "message", t, []byte(p.Message))
-	mut.Set("location", "lat", t, []byte(strconv.FormatFloat(p.Location.Lat, 'f', -1, 64)))
-	mut.Set("location", "lon", t, []byte(strconv.FormatFloat(p.Location.Lon, 'f', -1, 64)))
-
-	err = tbl.Apply(ctx, id, mut)
-	if err != nil {
-		panic(err)
-		return
-	}
-	fmt.Printf("Post is saved to BigTable: %s\n", p.Message)
 }
 
 
@@ -303,8 +282,31 @@ func saveToES(p *Post, id string) {
 		panic(err)
 		return
 	}
-
 	fmt.Printf("Post is saved to Index: %s\n", p.Message)
 }
 
 
+// Save a post to BigTable
+func saveToBigTable(p *Post, id string) {
+	ctx := context.Background()
+	bt_client, err := bigtable.NewClient(ctx, PROJECT_ID, BT_INSTANCE)
+	if err != nil {
+		panic(err)
+		return
+	}
+
+	tbl := bt_client.Open("post")
+	mut := bigtable.NewMutation()
+	t := bigtable.Now()
+	mut.Set("post", "user", t, []byte(p.User))
+	mut.Set("post", "message", t, []byte(p.Message))
+	mut.Set("location", "lat", t, []byte(strconv.FormatFloat(p.Location.Lat, 'f', -1, 64)))
+	mut.Set("location", "lon", t, []byte(strconv.FormatFloat(p.Location.Lon, 'f', -1, 64)))
+
+	err = tbl.Apply(ctx, id, mut)
+	if err != nil {
+		panic(err)
+		return
+	}
+	fmt.Printf("Post is saved to BigTable: %s\n", p.Message)
+}
