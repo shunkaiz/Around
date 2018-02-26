@@ -11,9 +11,13 @@ import (
 	"reflect"
 	"github.com/pborman/uuid"
 	"context"
-	//"cloud.google.com/go/storage"
-	//"io"
+	"cloud.google.com/go/storage"
+	"io"
 	"cloud.google.com/go/bigtable"
+	"github.com/auth0/go-jwt-middleware"
+	"github.com/dgrijalva/jwt-go"
+	"github.com/gorilla/mux"
+
 )
 type Location struct {
 	Lat float64 `json:"lat"`
@@ -27,6 +31,13 @@ type Post struct {
 	Location Location `json:"location"`
 	Url string `json:"url"`
 }
+
+type User struct{
+	Username string `json:"username"`
+	Password string `json:"password"`
+
+}
+var mySigningKey = []byte("secret")
 
 func main() {
 	// Create a client
@@ -44,26 +55,41 @@ func main() {
 	if !exists {
 		// Create a new index.
 		mapping := `{
-                    "mappings":{
-                           "post":{
-                                  "properties":{
-                                         "location":{
-                                                "type":"geo_point"
-                                         }
-                                  }
-                           }
-                    }
-             }
-             `
+			"mappings":{
+				"post":{
+					"properties":{
+
+						"location":{
+							"type":"geo_point"
+						}
+					}
+				}
+			}
+		}
+		`
 		_, err := client.CreateIndex(INDEX).Body(mapping).Do()
 		if err != nil {
 			// Handle error
 			panic(err)
 		}
 	}
-	fmt.Println("started-service")
-	http.HandleFunc("/post", handlerPost)
-	http.HandleFunc("/search", handlerSearch)
+	fmt.Println("Started service successfully")
+	// Here we are instantiating the gorilla/mux router
+	r := mux.NewRouter()
+
+	var jwtMiddleware = jwtmiddleware.New(jwtmiddleware.Options{
+		ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
+			return mySigningKey, nil
+		},
+		SigningMethod: jwt.SigningMethodHS256,
+	})
+
+	r.Handle("/post", jwtMiddleware.Handler(http.HandlerFunc(handlerPost))).Methods("POST")
+	r.Handle("/search", jwtMiddleware.Handler(http.HandlerFunc(handlerSearch))).Methods("GET")
+	r.Handle("/login", http.HandlerFunc(loginHandler)).Methods("POST")
+	r.Handle("/signup", http.HandlerFunc(signupHandler)).Methods("POST")
+
+	http.Handle("/", r)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
@@ -71,15 +97,11 @@ const (
 	INDEX = "around"
 	TYPE = "post"
 	DISTANCE = "200000km"
-	// Needs to update
-	//PROJECT_ID = "around-xxx"
-	//BT_INSTANCE = "around-post"
-	// Needs to update this URL if you deploy it to cloud.
 	ES_URL = "http://35.196.55.181:9200"
 	BUCKET_NAME = "post-image-195521"
 	PROJECT_ID = "around-195521"
 	BT_INSTANCE = "around-post"
-
+	TYPE_USER = "user"
 
 )
 
@@ -155,6 +177,9 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
 
+	user := r.Context().Value("user")
+	claims := user.(*jwt.Token).Claims
+	username := claims.(jwt.MapClaims)["username"]
 
 	// 32 << 20 is the maxMemory param for ParseMultipartForm, equals to 32MB (1MB = 1024 * 1024 bytes = 2^20 bytes)
 	// After you call ParseMultipartForm, the file will be saved in the server memory with maxMemory size.
@@ -166,7 +191,7 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
 	lat, _ := strconv.ParseFloat(r.FormValue("lat"), 64)
 	lon, _ := strconv.ParseFloat(r.FormValue("lon"), 64)
 	p := &Post{
-		User:    "1111",
+		User: username.(string),
 		Message: r.FormValue("message"),
 		Location: Location{
 			Lat: lat,
@@ -175,7 +200,7 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := uuid.New()
-
+	/**
 	file, _, err := r.FormFile("image")
 	if err != nil {
 		http.Error(w, "Image is not available", http.StatusInternalServerError)
@@ -183,7 +208,7 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
- 	/**
+
 	ctx := context.Background()
 
 	// replace it with your real bucket name.
@@ -226,7 +251,7 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Post is saved to BigTable: %s\n", p.Message)
 }
 
-/**
+
 func saveToGCS(ctx context.Context, r io.Reader, bucketName, name string) (*storage.ObjectHandle, *storage.ObjectAttrs, error) {
 	client, err := storage.NewClient(ctx)
 	if err != nil{
@@ -254,9 +279,9 @@ func saveToGCS(ctx context.Context, r io.Reader, bucketName, name string) (*stor
 	fmt.Printf("Post is saved to GCS: %s\n", attrs.MediaLink)
 	return obj, attrs, err
 }
-**/
 
-/**
+
+
 // Save a post to ElasticSearch
 func saveToES(p *Post, id string) {
 	// Create a client
@@ -281,4 +306,5 @@ func saveToES(p *Post, id string) {
 
 	fmt.Printf("Post is saved to Index: %s\n", p.Message)
 }
-**/
+
+
