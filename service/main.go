@@ -43,7 +43,7 @@ const (
 	DISTANCE    = "2000km"
 	BT_INSTANCE = "around-post"
 	// Needs to update this URL if you deploy it to cloud.
-	ES_URL          = "http://35.224.89.149:9200"
+	ES_URL          = "http://35.185.198.62:9200"
 	ENABLE_MEMCACHE = false
 	ENABLE_BIGTABLE = false
 	REDIS_URL       = "redis-18610.c1.us-central1-2.gce.cloud.redislabs.com:18610"
