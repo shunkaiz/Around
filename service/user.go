@@ -12,6 +12,15 @@ import (
 	"github.com/dgrijalva/jwt-go"
 )
 
+const (
+	TYPE_USER = "user"
+)
+
+type User struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 func checkUser(username, password string) bool {
 	es_client, err := elastic.NewClient(elastic.SetURL(ES_URL), elastic.SetSniff(false))
 	if err != nil {
