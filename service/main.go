@@ -43,7 +43,7 @@ const (
 	DISTANCE    = "2000km"
 	BT_INSTANCE = "around-post"
 	// Needs to update this URL if you deploy it to cloud.
-	ES_URL          = "http://35.184.122.199:9200"
+	ES_URL          = "http://35.197.2.20:9200"
 
 	ENABLE_MEMCACHE = false
 	ENABLE_BIGTABLE = false
